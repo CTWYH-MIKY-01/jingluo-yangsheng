@@ -1,9 +1,10 @@
-// 经络养生提醒 PWA Service Worker v1
-var CACHE = 'jlys-v1';
+// 经络养生提醒 PWA Service Worker v4（升级：快走配乐《分列式进行曲》· 放松操口令音频）
+var CACHE = 'jlys-v4';
 var ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './放松口令.mp3',
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-192.png',
@@ -36,23 +37,39 @@ self.addEventListener('activate', function (e) {
   );
 });
 
-// 拦截请求：仅同源 GET 走缓存；B站/跨域在线内容直接放行不缓存
+// 拦截请求：首页采用「网络优先」保证拿到最新版；其余同源 GET 缓存优先；B站/跨域直接放行
+self.addEventListener('message', function (e) {
+  if (e.data && e.data.type === 'SKIP_WAITING') { self.skipWaiting(); }
+});
+
 self.addEventListener('fetch', function (e) {
   var req = e.request;
   var url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== self.location.origin) {
     return; // 跨域（B站 iframe、其内嵌资源）不处理，正常走网络
   }
+  var isDoc = (req.mode === 'navigate') || /\/index\.html$/.test(url.pathname) || url.pathname.endsWith('/');
+  if (isDoc) {
+    // 首页网络优先：在线时永远拿最新 index.html，离线回退缓存
+    e.respondWith(
+      fetch(req).then(function (resp) {
+        var cp = resp.clone();
+        caches.open(CACHE).then(function (c) { c.put('./index.html', cp); });
+        return resp;
+      }).catch(function () {
+        return caches.match('./index.html');
+      })
+    );
+    return;
+  }
   e.respondWith(
     caches.match(req, { ignoreSearch: true }).then(function (hit) {
       if (hit) { return hit; }
       return fetch(req).then(function (resp) {
-        // 主页与图标实时回填缓存
         var cp = resp.clone();
         caches.open(CACHE).then(function (c) { c.put(req, cp); });
         return resp;
       }).catch(function () {
-        // 断网且未缓存：回退主页
         return caches.match('./index.html');
       });
     })

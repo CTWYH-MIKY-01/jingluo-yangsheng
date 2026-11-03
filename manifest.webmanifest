@@ -1,12 +1,12 @@
 {
   "name": "经络养生提醒 · 子午流注功法",
   "short_name": "经络养生",
-  "description": "子午流注十二时辰养生功法提醒：拍八虚、拍胆经、按脾经穴、五音疗法、放松操、站桩等",
+  "description": "子午流注十二时辰养生功法提醒：拍八虚、拍胆经、按脾经穴、快走养生、肝经疏通操、五音疗法、放松操、站桩等",
   "lang": "zh-CN",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#fbf5ec",
   "theme_color": "#c87f4a",
   "icons": [
