@@ -1,5 +1,5 @@
-// 经络养生提醒 PWA Service Worker v4（升级：快走配乐《分列式进行曲》· 放松操口令音频）
-var CACHE = 'jlys-v4';
+// 经络养生提醒 PWA Service Worker v5（升级：版本自动更新机制）
+var CACHE = 'jlys-v5';
 var ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ var ASSETS = [
   './icon-maskable-192.png',
   './icon-maskable-512.png'
 ];
+// 注意：version.txt 不入缓存、不做缓存优先，必须网络优先，否则客户端永远读到旧版本号
 
 // 安装：预缓存核心文件后立即激活
 self.addEventListener('install', function (e) {
@@ -47,6 +48,10 @@ self.addEventListener('fetch', function (e) {
   var url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== self.location.origin) {
     return; // 跨域（B站 iframe、其内嵌资源）不处理，正常走网络
+  }
+  // version.txt 必须走网络，永远拿服务器最新版本号（不能被旧缓存坑）
+  if (url.pathname.indexOf('version.txt') !== -1) {
+    return;
   }
   var isDoc = (req.mode === 'navigate') || /\/index\.html$/.test(url.pathname) || url.pathname.endsWith('/');
   if (isDoc) {

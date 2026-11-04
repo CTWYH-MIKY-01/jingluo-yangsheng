@@ -496,7 +496,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 </div>
 
 <!-- ===== 页脚版权 ===== -->
-<div class="app-footer">© 经络养生提醒 · 版权：王映华</div>
+<div class="app-footer">© 经络养生提醒 · 版权：王映华<br><span id="jlysVersion" style="color:var(--text3);font-size:11px">当前版本 v5</span><button id="checkUpdateBtn" type="button" style="margin-top:6px;padding:6px 16px;background:var(--primary);color:#fff;border:none;border-radius:14px;font-size:12px;font-family:inherit;cursor:pointer;touch-action:manipulation" onclick="VERSION_CHECK&&VERSION_CHECK.manualCheck()">检查更新</button></div>
 
 </div><!-- /main -->
 
@@ -1626,18 +1626,109 @@ function playVoiceCmd(file, text){
 </script>
 
 <script>
+/* 版本自动检测与刷新（v5 新增）
+   原理：
+     1. 页面里写死当前版本 APP_VERSION（发版时同步改）
+     2. 联网时用时间戳参数请求 version.txt（绕开 SW/HTTP 缓存，见 sw.js 放行）
+     3. 服务器版本 > 本页版本 → 说明网页已更新但手机还在用旧缓存，强刷一次打 ?fresh=
+     4. 页脚「检查更新」按钮手动触发同样对比
+   特点：
+     · 纯前端，无后端依赖，只要 version.txt 能访问
+     · 跟练进度存 localStorage，强刷不丢
+     · file:// 或 version.txt 拿不到时静默跳过，绝不报错
+*/
+(function () {
+  "use strict";
+  var APP_VERSION = "v5";
+  var CHECK_KEY = "jlys_ver_checked";
+  var CHECKED_AT = "jlys_ver_time";
+  var COOLDOWN_MS = 30 * 60 * 1000;   // 自动检查间隔 30 分钟
+
+  function fetchServerVersion(cb) {
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", "version.txt?t=" + Date.now(), true);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status !== 200 && xhr.status !== 0) return cb("");
+        var first = (xhr.responseText || "").split("\n")[0].trim();
+        cb(/^v\d+$/i.test(first) ? first.toLowerCase() : "");
+      };
+      xhr.send();
+    } catch (e) { cb(""); }
+  }
+  function isNewer(remote, local) {
+    if (!remote || !local) return false;
+    var r = parseInt(remote.replace(/^v/i, ""), 10);
+    var l = parseInt(local.replace(/^v/i, ""), 10);
+    if (isNaN(r) || isNaN(l)) return false;
+    return r > l;
+  }
+  function justFreshened() {
+    try { return new URLSearchParams(location.search).get("fresh") !== null; } catch (e) { return false; }
+  }
+  function buildFreshUrl() {
+    var base = location.href.split("#")[0];
+    var q = location.search.replace(/[?&]fresh=\d+/g, "");
+    return base.replace(location.search, "") + (q ? q + "&" : "?") + "fresh=" + Date.now();
+  }
+  function applyUpdate(remoteVer) {
+    if (justFreshened()) return false;
+    try { localStorage.setItem(CHECK_KEY, remoteVer); } catch (e) {}
+    location.replace(buildFreshUrl());
+    return true;
+  }
+  function manualCheck() {
+    fetchServerVersion(function (remote) {
+      var btn = document.getElementById("checkUpdateBtn");
+      if (!remote) {
+        alert("连不上版本信息（可能离线打开或网络未通）。\n若刚上传新版，请稍等几分钟再试。");
+        return;
+      }
+      if (isNewer(remote, APP_VERSION)) {
+        alert("发现新版（" + remote + "），正在为您刷新到最新版…");
+        location.replace(buildFreshUrl());
+      } else {
+        if (btn) btn.textContent = "已是最新版 " + APP_VERSION;
+        alert("当前已是最新版（" + APP_VERSION + "）。");
+      }
+    });
+  }
+  function autoCheck() {
+    if (justFreshened()) return;
+    if (location.protocol === "file:") return;
+    var last = 0;
+    try { last = parseInt(localStorage.getItem(CHECKED_AT) || "0", 10) || 0; } catch (e) {}
+    if (Date.now() - last < COOLDOWN_MS) return;
+    try { localStorage.setItem(CHECKED_AT, String(Date.now())); } catch (e) {}
+    fetchServerVersion(function (remote) {
+      if (remote && isNewer(remote, APP_VERSION)) applyUpdate(remote);
+    });
+  }
+  function bind() {
+    var btn = document.getElementById("checkUpdateBtn");
+    if (btn) btn.onclick = manualCheck;
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () { bind(); autoCheck(); });
+  } else {
+    bind(); autoCheck();
+  }
+  window.VERSION_CHECK = { manualCheck: manualCheck };
+})();
+</script>
+
+<script>
 if ('serviceWorker' in navigator && window.isSecureContext) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('./sw.js').then(function (reg) {
       console.log('[PWA] Service Worker 注册成功');
-      // 每次打开主动检查更新，发现新版本立即激活并自动刷新一次（保证用户拿到最新页面）
       reg.update().catch(function(){});
       reg.addEventListener('updatefound', function () {
         var nw = reg.installing;
         if (!nw) return;
         nw.addEventListener('statechange', function () {
           if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-            // 已有旧版本在控制页面，说明这是更新：直接接管并刷新一次
             nw.postMessage && nw.postMessage({type:'SKIP_WAITING'});
             window.__pwaRefreshing = true;
             window.location.reload();
@@ -1647,7 +1738,6 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
     }).catch(function (err) {
       console.warn('[PWA] Service Worker 注册失败:', err);
     });
-    // 控制器变更（新 SW 接管）后自动刷新一次
     navigator.serviceWorker.addEventListener('controllerchange', function () {
       if (window.__pwaRefreshing) return;
       window.__pwaRefreshing = true;
