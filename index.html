@@ -496,7 +496,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 </div>
 
 <!-- ===== 页脚版权 ===== -->
-<div class="app-footer">© 经络养生提醒 · 版权：王映华<br><span id="jlysVersion" style="color:var(--text3);font-size:11px">当前版本 v5</span><button id="checkUpdateBtn" type="button" style="margin-top:6px;padding:6px 16px;background:var(--primary);color:#fff;border:none;border-radius:14px;font-size:12px;font-family:inherit;cursor:pointer;touch-action:manipulation" onclick="VERSION_CHECK&&VERSION_CHECK.manualCheck()">检查更新</button></div>
+<div class="app-footer" style="line-height:1.8"><div style="margin-bottom:4px">© 经络养生提醒 · 版权：王映华</div><div id="jlysVersion" style="color:var(--text3);font-size:11px">当前版本 v5</div><div style="margin-top:8px"><button id="checkUpdateBtn" type="button" style="padding:6px 16px;background:var(--primary);color:#fff;border:none;border-radius:14px;font-size:12px;font-family:inherit;cursor:pointer;touch-action:manipulation" onclick="VERSION_CHECK&&VERSION_CHECK.manualCheck()">检查更新</button></div></div>
 
 </div><!-- /main -->
 
@@ -681,6 +681,8 @@ function playWalkMusic(){
     a.play().then(()=>{walkMusicPlaying=true;}).catch(function(err){
       console.log('快走音乐播放失败：',err);
       walkMusicPlaying=false;
+      // 兜底：自动播放被浏览器策略拒绝时，提示用户手动点一次
+      try{ if(typeof speak==='function'){ speak('背景音乐播放失败，请检查手机媒体音量后再点一次开始。'); } }catch(e){}
     });
   }catch(e){walkMusicPlaying=false;}
 }
